@@ -1,61 +1,87 @@
-# Energy Demand Forecasting
+# German Energy Demand Forecasting
 
-End-to-end ML pipelines for hourly electricity demand using historical load, weather, renewables, and calendar features from `german_energy_load_2022_2024.csv`. Includes CLI training, two notebooks, Optuna tuning, and MLflow experiment tracking.
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](YOUR_APP_URL)
 
-## Structure
-- `train.py` – CLI to train/evaluate base models and a stacked ensemble; saves metrics and artifacts.
-- `src/config.py`, `src/data_loader.py`, `src/features.py`, `src/modeling.py`, `src/evaluation.py` – core pipeline pieces.
-- `models/` – created at runtime for saved models, metrics, and prediction samples.
-- `notebooks/energy_forecasting_mlflow.ipynb` – compact, self-contained walkthrough with MLflow logging (EDA, features, RF/XGB baselines, Optuna-tuned XGB).
-- `notebooks/german_energy_load_forecasting.ipynb` – richer narrative notebook with extensive EDA, feature engineering, RF and XGB baselines, Optuna tuning, plots, and MLflow runs.
-- `mlruns/` – MLflow local backend store (created by notebooks/CLI runs).
+Interactive forecasting, notebooks, and CLI pipelines for hourly German electricity load using historical load, weather, renewables, and calendar features from `german_energy_load_2022_2024.csv` (2022–2024 hourly).
 
-## Setup
-1) Use Python 3.11 (or 3.10/3.12). Install dependencies:
-   ```bash
-   python -m pip install --upgrade pip
-   python -m pip install -r requirements.txt
-   ```
-2) Optional: start MLflow UI to inspect runs logged by notebooks:
-   ```bash
-   mlflow ui --backend-store-uri mlruns
-   ```
+## 🎯 Business Problem
+Germany’s grid needs accurate short-term demand forecasts to balance renewables and keep the Energiewende on track. This project builds tree-based models and ensembles to predict hourly load and surface insights on seasonality and driver importance.
 
-## CLI training
-- Quick smoke test:
-  ```bash
-  python train.py --fast-dev-run --sample-frac 0.15
-  ```
-- Full training:
-  ```bash
-  python train.py
-  ```
-Artifacts go to `models/`:
-- `stacked_ensemble.joblib` – imputer + stacking pipeline.
-- `metrics.json` – validation metrics for each base model and test metrics for the stack.
-- `validation_predictions.csv` – timestamps, actual load, stacked predictions on validation window.
+## 📊 Data
+- Source: Prepared CSV (`german_energy_load_2022_2024.csv`) derived from ENTSO-E-style transparency data.
+- Horizon: 2022–2024 hourly.
+- Features: calendar (hour/day/month, weekend), cyclical encodings, lags (1h/24h/168h), rolling stats (24h/168h), temperature, wind, solar.
 
-## Notebook usage
-- Open either notebook and run top-to-bottom. They are self-contained and assume the CSV is at the project root (use `../german_energy_load_2022_2024.csv` inside `notebooks/`).
-- Toggle `FAST_DEV_RUN` / `N_TRIALS` in the notebooks to shorten runs.
-- MLflow runs are logged under `mlruns/`; use the same path when launching the UI.
+## 🤖 Model Performance (from MLflow runs)
+| Model           | MAE (MW) | RMSE (MW) | R²    |
+|-----------------|---------:|----------:|:------|
+| Random Forest   | ~1,080   | ~1,297    | 0.976 |
+| XGBoost         | ~1,087   | ~1,307    | 0.976 |
+| Ensemble (stack)| Not logged in MLflow; available via `train.py` |
 
-### MLflow usage
-From the project root:
+Notes: RF slightly edges XGB on this dataset; XGB is more regularized (smaller train–test gap). The stacked ensemble is trained via CLI but not run in the logged notebook sessions.
+
+## 🚀 Live Demo
+Streamlit app (update with your URL after deployment): `YOUR_APP_URL`
+
+Local run:
+```bash
+streamlit run app.py
+```
+
+## 📈 Key Features
+- Hourly load prediction with 24-hour forecast plot and summary metrics.
+- Feature engineering: cyclical time encodings, lags, rolling stats, weather/renewables.
+- Optuna tuning workflow for XGBoost.
+- MLflow tracking for parameters, metrics, and artifacts.
+- Two notebooks: quick MLflow walkthrough and rich EDA/modeling narrative.
+
+## 💻 Technical Stack
+- Python 3.11 recommended (3.10/3.12 OK)
+- ML: scikit-learn, XGBoost, LightGBM (CLI ensemble)
+- Data: pandas, numpy
+- Viz: matplotlib, seaborn, plotly
+- Tracking: MLflow
+- App: Streamlit
+
+## 🛠️ Setup
+```bash
+git clone https://github.com/chametukudoh/German-Energy-Demand-Forecasting.git
+cd German-Energy-Demand-Forecasting
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+## CLI Training
+Quick smoke:
+```bash
+python train.py --fast-dev-run --sample-frac 0.15
+```
+Full:
+```bash
+python train.py
+```
+Artifacts -> `models/`: `stacked_ensemble.joblib`, `metrics.json`, `validation_predictions.csv`.
+
+## Notebooks
+- `notebooks/energy_forecasting_mlflow.ipynb` – compact, self-contained walkthrough with MLflow logging (RF/XGB baselines, Optuna-tuned XGB).
+- `notebooks/german_energy_load_forecasting.ipynb` – detailed EDA, seasonal/temporal plots, RF/XGB baselines, Optuna tuning, comparisons, and MLflow runs.
+
+## MLflow UI
+From project root:
 ```bash
 mlflow ui --backend-store-uri mlruns
 ```
-Then open http://localhost:5000 to browse experiments and artifacts.
+Open http://localhost:5000 to browse runs and artifacts.
 
-## Features engineered
-- Calendar: hour/day/month, weekend flag, cyclical encodings (`sin_`, `cos_` terms).
-- Load history: lags at 1h/24h/168h, rolling mean/std at 24h and 168h.
-- External signals: temperature, wind, solar, plus provided calendar columns.
+## App Inputs / Model Expectations
+- Minimal inputs: date and hour; app builds calendar/cyclical features and uses default zeros for weather/renewables. For best results, deploy a model trained with matching feature schema (e.g., `energy_forecast_model.pkl` or `models/stacked_ensemble.joblib`).
 
-## Models and results
-- Base learners: RandomForestRegressor, GradientBoostingRegressor, XGBRegressor, LGBMRegressor; stacked ensemble in `train.py`.
-- Notebook baselines (from MLflow runs): RF and XGB both achieve high R² (~0.976) on test; RF slightly better RMSE (~1297 MW) vs XGB baseline (~1307 MW), with XGB more regularized (smaller train–test gap). Optuna-tuned XGB is available in the notebook for further gains.
+## 📧 Contact
+**Chamberlain Etukudoh**  
+Data Scientist | Open to opportunities in 🇨🇦 🇳🇱 🇩🇪  
+LinkedIn: [chamberlain-etukudoh](https://linkedin.com/in/chamberlain-etukudoh-770b7948)  
+Email: chamberlainet@gmail.com
 
-## Notes
-- Splits are chronological: last 90 days for test, preceding 30 days for validation (CLI). Notebooks use time-aware splits consistent with their narratives.
-- Run commands from the project root (or adjust paths) so the CSV is found.
+## 📄 License
+MIT License
