@@ -7,12 +7,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+try:
+    import mlflow.pyfunc  # type: ignore
+except Exception:  # noqa: BLE001
+    mlflow = None
+else:
+    mlflow = mlflow
+
 
 st.set_page_config(page_title="German Energy Demand Forecasting", page_icon="🔋", layout="wide")
 
 MODEL_CANDIDATES = [
-    Path("energy_forecast_model.pkl"),  # user-provided override
-    Path("models/stacked_ensemble.joblib"),  # CLI-trained model
+    Path("models/xgboost_optimized_model"),  # tuned XGB from MLflow (pyfunc)
+    Path("energy_forecast_model.pkl"),  # user-provided override (pickle)
+    Path("models/stacked_ensemble.joblib"),  # CLI-trained model (pickle/joblib)
 ]
 
 
@@ -20,45 +28,88 @@ MODEL_CANDIDATES = [
 def load_model():
     """Load the trained model from the first available candidate path."""
     for path in MODEL_CANDIDATES:
-        if path.exists():
-            with open(path, "rb") as f:
-                return pickle.load(f), path
+        if not path.exists():
+            continue
+        # MLflow pyfunc directory
+        if path.is_dir() and (path / "MLmodel").exists() and mlflow is not None:
+            try:
+                model = mlflow.pyfunc.load_model(path.as_posix())
+                return model, path
+            except Exception:
+                pass
+        # Pickle / joblib
+        if path.is_file():
+            try:
+                with open(path, "rb") as f:
+                    return pickle.load(f), path
+            except Exception:
+                pass
     return None, None
 
 
 def build_feature_row(date: datetime, hour: int) -> dict:
-    """Construct a single feature row with basic calendar features and cyclical encodings."""
+    """Construct a single feature row mirroring the tuned XGB feature schema."""
     dow = date.weekday()
     month = date.month
+    year = date.year
     is_weekend = 1 if dow >= 5 else 0
+    quarter = ((month - 1) // 3) + 1
+    day_of_year = date.timetuple().tm_yday
+    week_of_year = date.isocalendar().week
+
+    is_working_hours = 1 if 8 <= hour <= 18 else 0
+    is_night = 1 if hour <= 5 or hour >= 22 else 0
+    is_peak_morning = 1 if 7 <= hour <= 10 else 0
+    is_peak_evening = 1 if 17 <= hour <= 20 else 0
+
     features = {
+        "temperature_C": 0.0,
+        "wind_generation_MW": 0.0,
+        "solar_generation_MW": 0.0,
         "hour": hour,
         "day_of_week": dow,
         "month": month,
         "is_weekend": is_weekend,
+        "year": year,
+        "hour_sin": np.sin(2 * np.pi * hour / 24),
+        "hour_cos": np.cos(2 * np.pi * hour / 24),
+        "day_sin": np.sin(2 * np.pi * dow / 7),
+        "day_cos": np.cos(2 * np.pi * dow / 7),
+        "month_sin": np.sin(2 * np.pi * month / 12),
+        "month_cos": np.cos(2 * np.pi * month / 12),
+        "quarter": quarter,
+        "day_of_year": day_of_year,
+        "week_of_year": week_of_year,
+        "is_working_hours": is_working_hours,
+        "is_night": is_night,
+        "is_peak_morning": is_peak_morning,
+        "is_peak_evening": is_peak_evening,
     }
-    # Add cyclical encodings to better align with training features
-    features.update(
-        {
-            "sin_hour": np.sin(2 * np.pi * hour / 24),
-            "cos_hour": np.cos(2 * np.pi * hour / 24),
-            "sin_day_of_week": np.sin(2 * np.pi * dow / 7),
-            "cos_day_of_week": np.cos(2 * np.pi * dow / 7),
-            "sin_month": np.sin(2 * np.pi * month / 12),
-            "cos_month": np.cos(2 * np.pi * month / 12),
-        }
-    )
-    # Placeholder defaults for any additional model features (e.g., temperature, renewables, lags)
-    defaults = {
-        "temperature_C": 0.0,
-        "wind_generation_MW": 0.0,
-        "solar_generation_MW": 0.0,
-    }
-    features.update({k: defaults.get(k, 0.0) for k in defaults})
     return features
 
 
 model, model_path = load_model()
+expected_features = None
+# Try to infer expected feature order from the loaded model
+if model is not None:
+    for attr in ("feature_names_in_", "feature_names"):
+        if hasattr(model, attr):
+            expected_features = list(getattr(model, attr))
+            break
+    if expected_features is None and hasattr(model, "get_booster"):
+        try:
+            booster = model.get_booster()
+            if booster.feature_names:
+                expected_features = list(booster.feature_names)
+        except Exception:
+            pass
+    if expected_features is None and hasattr(model, "metadata"):
+        try:
+            sig = model.metadata.get_input_schema()
+            if sig and getattr(sig, "input_names", None):
+                expected_features = list(sig.input_names())
+        except Exception:
+            pass
 
 st.title("🔋 German Energy Demand Forecasting")
 st.markdown("### Predicting Electricity Load for Germany's Energy Grid")
@@ -73,13 +124,45 @@ if model is None:
 st.sidebar.header("Input Parameters")
 date_input = st.sidebar.date_input("Select Date", datetime.now())
 hour_input = st.sidebar.slider("Hour of Day", 0, 23, 12)
+temp_input = st.sidebar.number_input("Temperature (°C)", value=0.0)
+wind_input = st.sidebar.number_input("Wind generation (MW)", value=0.0, min_value=0.0)
+solar_input = st.sidebar.number_input("Solar generation (MW)", value=0.0, min_value=0.0)
 
 st.sidebar.markdown(f"**Loaded model:** `{model_path}`")
 
 features = build_feature_row(date_input, hour_input)
+# enrich with weather/renewables inputs
+features.update(
+    {
+        "temperature_C": temp_input,
+        "wind_generation_MW": wind_input,
+        "solar_generation_MW": solar_input,
+    }
+)
+
+# Interaction features (must match training order - these come before lag features)
+renewable_total = features["wind_generation_MW"] + features["solar_generation_MW"]
+features["temp_hour"] = temp_input * features["hour"]
+features["renewable_total"] = renewable_total
+features["renewable_ratio"] = features["wind_generation_MW"] / (features["solar_generation_MW"] + 1)
+
+# Lag/rolling placeholders (if you have recent load history, wire it here)
+placeholders = {
+    "load_lag_1": 0.0,
+    "load_lag_24": 0.0,
+    "load_lag_168": 0.0,
+    "load_rolling_mean_24": 0.0,
+    "load_rolling_std_24": 0.0,
+    "temp_rolling_mean_24": temp_input,
+    "temp_squared": temp_input**2,
+    "temp_deviation": temp_input - temp_input,
+}
+features.update(placeholders)
 
 if st.sidebar.button("Predict"):
     X_input = pd.DataFrame([features])
+    if expected_features:
+        X_input = X_input.reindex(columns=expected_features, fill_value=0.0)
     try:
         prediction = float(model.predict(X_input)[0])
         st.success(f"Predicted Load: {prediction:,.0f} MW")
@@ -91,7 +174,31 @@ st.subheader("24-Hour Forecast")
 forecast_rows = []
 for h in range(24):
     feats = build_feature_row(date_input, h)
+    # Add weather/renewables inputs
+    feats.update({
+        "temperature_C": temp_input,
+        "wind_generation_MW": wind_input,
+        "solar_generation_MW": solar_input,
+    })
+    # Interaction features (same order as above)
+    renewable_total_h = feats["wind_generation_MW"] + feats["solar_generation_MW"]
+    feats["temp_hour"] = temp_input * feats["hour"]
+    feats["renewable_total"] = renewable_total_h
+    feats["renewable_ratio"] = feats["wind_generation_MW"] / (feats["solar_generation_MW"] + 1)
+    # Lag/rolling placeholders
+    feats.update({
+        "load_lag_1": 0.0,
+        "load_lag_24": 0.0,
+        "load_lag_168": 0.0,
+        "load_rolling_mean_24": 0.0,
+        "load_rolling_std_24": 0.0,
+        "temp_rolling_mean_24": temp_input,
+        "temp_squared": temp_input**2,
+        "temp_deviation": temp_input - temp_input,
+    })
     X_h = pd.DataFrame([feats])
+    if expected_features:
+        X_h = X_h.reindex(columns=expected_features, fill_value=0.0)
     try:
         pred = float(model.predict(X_h)[0])
     except Exception:

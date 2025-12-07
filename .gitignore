@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Environments
+venv/
+.env
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Data and artifacts
+data/
+mlruns/
+models/
+energy_forecast_model.pkl
+*.pkl
+*.joblib
+
+# OS / editor
+.DS_Store
+Thumbs.db
