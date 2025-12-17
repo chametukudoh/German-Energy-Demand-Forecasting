@@ -2,6 +2,7 @@ import pickle
 from datetime import datetime
 import os
 from pathlib import Path
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -50,6 +51,9 @@ class _BoosterPredictor:
         dmatrix = xgb.DMatrix(X)  # type: ignore[union-attr]
         return self._booster.predict(dmatrix)
 
+    def get_booster(self):
+        return self._booster
+
 
 @st.cache_resource
 def load_model():
@@ -76,19 +80,36 @@ def load_model():
         if path.is_dir() and (path / "model.xgb").exists() and xgb is not None:
             model_file = path / "model.xgb"
             try:
-                model = xgb.XGBRegressor()
-                model.load_model(model_file.as_posix())
-                report.append(f"loaded: xgb.XGBRegressor.load_model ({model_file})")
-                return model, model_file, report
+                booster = xgb.Booster()
+                booster.load_model(model_file.as_posix())
+                report.append(f"loaded: xgb.Booster.load_model ({model_file})")
+                return _BoosterPredictor(booster), model_file, report
             except Exception as exc:  # noqa: BLE001
-                report.append(f"load_failed: xgb.XGBRegressor.load_model ({model_file}) -> {exc}")
-                try:
-                    booster = xgb.Booster()
-                    booster.load_model(model_file.as_posix())
-                    report.append(f"loaded: xgb.Booster.load_model ({model_file})")
-                    return _BoosterPredictor(booster), model_file, report
-                except Exception as exc2:  # noqa: BLE001
-                    report.append(f"load_failed: xgb.Booster.load_model ({model_file}) -> {exc2}")
+                report.append(f"load_failed: xgb.Booster.load_model ({model_file}) -> {exc}")
+
+            try:
+                tmp_dir = Path(tempfile.gettempdir())
+                tmp_model = tmp_dir / f"{model_file.stem}-{model_file.stat().st_size}.ubj"
+                if not tmp_model.exists():
+                    tmp_model.write_bytes(model_file.read_bytes())
+                booster = xgb.Booster()
+                booster.load_model(tmp_model.as_posix())
+                report.append(f"loaded: xgb.Booster.load_model (forced .ubj via {tmp_model})")
+                return _BoosterPredictor(booster), model_file, report
+            except Exception as exc2:  # noqa: BLE001
+                report.append(f"load_failed: xgb.Booster.load_model (forced .ubj) -> {exc2}")
+
+            try:
+                tmp_dir = Path(tempfile.gettempdir())
+                tmp_model = tmp_dir / f"{model_file.stem}-{model_file.stat().st_size}.json"
+                if not tmp_model.exists():
+                    tmp_model.write_bytes(model_file.read_bytes())
+                booster = xgb.Booster()
+                booster.load_model(tmp_model.as_posix())
+                report.append(f"loaded: xgb.Booster.load_model (forced .json via {tmp_model})")
+                return _BoosterPredictor(booster), model_file, report
+            except Exception as exc3:  # noqa: BLE001
+                report.append(f"load_failed: xgb.Booster.load_model (forced .json) -> {exc3}")
         # Pickle / joblib
         if path.is_file():
             if path.suffix.lower() == ".joblib" and joblib is not None:
