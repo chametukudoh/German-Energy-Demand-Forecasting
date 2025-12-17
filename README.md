@@ -1,6 +1,6 @@
 # German Energy Demand Forecasting
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](YOUR_APP_URL)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://german-energy-demand-forecasting-6j78ybwhfjkpkpgmwk5tsb.streamlit.app/)
 
 Interactive forecasting, notebooks, and CLI pipelines for hourly German electricity load using historical load, weather, renewables, and calendar features from `german_energy_load_2022_2024.csv` (2022–2024 hourly).
 
@@ -22,7 +22,7 @@ Germany’s grid needs accurate short-term demand forecasts to balance renewable
 Notes: RF slightly edges XGB on this dataset; XGB is more regularized (smaller train–test gap). The repo includes an MLflow `pyfunc` artifact under `models/xgboost_optimized_model/` for the Streamlit app.
 
 ## 🚀 Live Demo
-Streamlit app (update with your URL after deployment): `YOUR_APP_URL`
+Streamlit app: `https://german-energy-demand-forecasting-6j78ybwhfjkpkpgmwk5tsb.streamlit.app/`
 
 Local run:
 ```bash
