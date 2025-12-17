@@ -45,6 +45,7 @@ Open `http://localhost:8501`.
 Deployment notes (Streamlit Community Cloud):
 - Python is pinned via `runtime.txt` to `python-3.11` to avoid building heavy deps on newer interpreters.
 - System dependency `libgomp1` is installed via `packages.txt` for XGBoost/LightGBM OpenMP runtime support.
+  - The app loads `models/xgboost_optimized_model/model.xgb` directly (no MLflow dependency) to avoid `pyarrow` builds on Streamlit Cloud.
 
 ## 📈 Key Features
 - Hourly load prediction with 24-hour forecast plot and summary metrics.

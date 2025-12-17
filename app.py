@@ -13,6 +13,11 @@ except Exception:  # noqa: BLE001
     joblib = None
 
 try:
+    import xgboost as xgb  # type: ignore
+except Exception:  # noqa: BLE001
+    xgb = None
+
+try:
     import mlflow.pyfunc  # type: ignore
 except Exception:  # noqa: BLE001
     mlflow = None
@@ -40,6 +45,14 @@ def load_model():
             try:
                 model = mlflow.pyfunc.load_model(path.as_posix())
                 return model, path
+            except Exception:
+                pass
+        # MLflow-exported XGBoost model without requiring MLflow (Streamlit Cloud-friendly)
+        if path.is_dir() and (path / "model.xgb").exists() and xgb is not None:
+            try:
+                model = xgb.XGBRegressor()
+                model.load_model((path / "model.xgb").as_posix())
+                return model, path / "model.xgb"
             except Exception:
                 pass
         # Pickle / joblib
