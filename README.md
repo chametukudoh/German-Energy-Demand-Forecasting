@@ -44,7 +44,7 @@ Open `http://localhost:8501`.
 
 Deployment notes (Streamlit Community Cloud):
 - Python is pinned via `runtime.txt` to `python-3.11` to avoid building heavy deps on newer interpreters.
-- `pyarrow==14.0.2` is pinned to align with `mlflow==2.14.1` and pull a prebuilt wheel instead of compiling from source.
+- System dependency `libgomp1` is installed via `packages.txt` for XGBoost/LightGBM OpenMP runtime support.
 
 ## 📈 Key Features
 - Hourly load prediction with 24-hour forecast plot and summary metrics.
@@ -67,6 +67,10 @@ git clone https://github.com/chametukudoh/German-Energy-Demand-Forecasting.git
 cd German-Energy-Demand-Forecasting
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+```
+For training/EDA dependencies:
+```bash
+python -m pip install -r requirements-dev.txt
 ```
 
 ## Models
