@@ -16,7 +16,10 @@ venv/
 # Data and artifacts
 data/
 mlruns/
-models/
+models/*
+!models/xgboost_optimized_model/
+!models/xgboost_optimized_model/**
+!models/stacked_ensemble.joblib
 energy_forecast_model.pkl
 *.pkl
 *.joblib

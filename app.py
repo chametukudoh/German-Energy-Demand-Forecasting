@@ -8,6 +8,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 try:
+    import joblib  # type: ignore
+except Exception:  # noqa: BLE001
+    joblib = None
+
+try:
     import mlflow.pyfunc  # type: ignore
 except Exception:  # noqa: BLE001
     mlflow = None
@@ -39,6 +44,11 @@ def load_model():
                 pass
         # Pickle / joblib
         if path.is_file():
+            if path.suffix.lower() == ".joblib" and joblib is not None:
+                try:
+                    return joblib.load(path), path
+                except Exception:
+                    pass
             try:
                 with open(path, "rb") as f:
                     return pickle.load(f), path
@@ -117,7 +127,7 @@ st.markdown("### Predicting Electricity Load for Germany's Energy Grid")
 if model is None:
     st.error(
         "No model file found. Place `energy_forecast_model.pkl` in the project root "
-        "or use `models/stacked_ensemble.joblib` from `train.py`."
+        "or place a trained artifact under `models/` (e.g. `models/stacked_ensemble.joblib`)."
     )
     st.stop()
 

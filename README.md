@@ -17,9 +17,9 @@ Germany’s grid needs accurate short-term demand forecasts to balance renewable
 |-----------------|---------:|----------:|:------|
 | Random Forest   | ~1,080   | ~1,297    | 0.976 |
 | XGBoost         | ~1,087   | ~1,307    | 0.976 |
-| Ensemble (stack)| Not logged in MLflow; available via `train.py` |
+| Ensemble (stack)| -        | -         | -     |
 
-Notes: RF slightly edges XGB on this dataset; XGB is more regularized (smaller train–test gap). The stacked ensemble is trained via CLI but not run in the logged notebook sessions.
+Notes: RF slightly edges XGB on this dataset; XGB is more regularized (smaller train–test gap). The repo includes an MLflow `pyfunc` artifact under `models/xgboost_optimized_model/` for the Streamlit app.
 
 ## 🚀 Live Demo
 Streamlit app (update with your URL after deployment): `YOUR_APP_URL`
@@ -28,6 +28,23 @@ Local run:
 ```bash
 streamlit run app.py
 ```
+
+Docker:
+```bash
+docker build -t energy-forecast-streamlit .
+docker run --rm -p 8501:8501 energy-forecast-streamlit
+```
+Open `http://localhost:8501`.
+
+Docker Compose:
+```bash
+docker compose up --build
+```
+Open `http://localhost:8501`.
+
+Deployment notes (Streamlit Community Cloud):
+- Python is pinned via `runtime.txt` to `python-3.11` to avoid building heavy deps on newer interpreters.
+- `pyarrow==14.0.2` is pinned to align with `mlflow==2.14.1` and pull a prebuilt wheel instead of compiling from source.
 
 ## 📈 Key Features
 - Hourly load prediction with 24-hour forecast plot and summary metrics.
@@ -52,16 +69,10 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## CLI Training
-Quick smoke:
-```bash
-python train.py --fast-dev-run --sample-frac 0.15
-```
-Full:
-```bash
-python train.py
-```
-Artifacts -> `models/`: `stacked_ensemble.joblib`, `metrics.json`, `validation_predictions.csv`.
+## Models
+- Inference artifacts used by the Streamlit app:
+  - `models/xgboost_optimized_model/` (MLflow pyfunc)
+  - Optional override: `energy_forecast_model.pkl` (root)
 
 ## Notebooks
 - `notebooks/energy_forecasting_mlflow.ipynb` – compact, self-contained walkthrough with MLflow logging (RF/XGB baselines, Optuna-tuned XGB).
