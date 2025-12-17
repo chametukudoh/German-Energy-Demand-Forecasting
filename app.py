@@ -1,5 +1,6 @@
 import pickle
 from datetime import datetime
+import os
 from pathlib import Path
 
 import numpy as np
@@ -143,6 +144,17 @@ if model is None:
     st.error(
         "No model file found. Place `energy_forecast_model.pkl` in the project root "
         "or place a trained artifact under `models/` (e.g. `models/stacked_ensemble.joblib`)."
+    )
+    st.caption("Debug info (what the app tried to load):")
+    st.code(
+        "\n".join(
+            [
+                f"cwd: {os.getcwd()}",
+                f"app_dir: {APP_DIR}",
+                "candidates:",
+                *[f"- {p} (exists={p.exists()})" for p in MODEL_CANDIDATES],
+            ]
+        )
     )
     st.stop()
 
