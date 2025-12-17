@@ -27,10 +27,12 @@ else:
 
 st.set_page_config(page_title="German Energy Demand Forecasting", page_icon="🔋", layout="wide")
 
+APP_DIR = Path(__file__).resolve().parent
+
 MODEL_CANDIDATES = [
-    Path("models/xgboost_optimized_model"),  # tuned XGB from MLflow (pyfunc)
-    Path("energy_forecast_model.pkl"),  # user-provided override (pickle)
-    Path("models/stacked_ensemble.joblib"),  # CLI-trained model (pickle/joblib)
+    APP_DIR / "models" / "xgboost_optimized_model",  # tuned XGB from MLflow (pyfunc)
+    APP_DIR / "energy_forecast_model.pkl",  # user-provided override (pickle)
+    APP_DIR / "models" / "stacked_ensemble.joblib",  # CLI-trained model (pickle/joblib)
 ]
 
 
