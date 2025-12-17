@@ -15,15 +15,20 @@ except Exception:  # noqa: BLE001
 
 try:
     import xgboost as xgb  # type: ignore
-except Exception:  # noqa: BLE001
+except Exception as exc:  # noqa: BLE001
     xgb = None
+    xgb_import_error = exc
+else:
+    xgb_import_error = None
 
 try:
     import mlflow.pyfunc  # type: ignore
-except Exception:  # noqa: BLE001
+except Exception as exc:  # noqa: BLE001
     mlflow = None
+    mlflow_import_error = exc
 else:
     mlflow = mlflow
+    mlflow_import_error = None
 
 
 st.set_page_config(page_title="German Energy Demand Forecasting", page_icon="🔋", layout="wide")
@@ -37,40 +42,68 @@ MODEL_CANDIDATES = [
 ]
 
 
+class _BoosterPredictor:
+    def __init__(self, booster):
+        self._booster = booster
+
+    def predict(self, X: pd.DataFrame):
+        dmatrix = xgb.DMatrix(X)  # type: ignore[union-attr]
+        return self._booster.predict(dmatrix)
+
+
 @st.cache_resource
 def load_model():
     """Load the trained model from the first available candidate path."""
+    report = []
+    report.append(f"cwd: {os.getcwd()}")
+    report.append(f"app_dir: {APP_DIR}")
+    report.append(f"xgboost_import: {'ok' if xgb is not None else f'failed ({xgb_import_error})'}")
+    report.append(f"mlflow_import: {'ok' if mlflow is not None else f'failed ({mlflow_import_error})'}")
+
     for path in MODEL_CANDIDATES:
+        report.append(f"candidate: {path} (exists={path.exists()})")
         if not path.exists():
             continue
         # MLflow pyfunc directory
         if path.is_dir() and (path / "MLmodel").exists() and mlflow is not None:
             try:
                 model = mlflow.pyfunc.load_model(path.as_posix())
-                return model, path
-            except Exception:
-                pass
+                report.append(f"loaded: mlflow.pyfunc ({path})")
+                return model, path, report
+            except Exception as exc:  # noqa: BLE001
+                report.append(f"load_failed: mlflow.pyfunc ({path}) -> {exc}")
         # MLflow-exported XGBoost model without requiring MLflow (Streamlit Cloud-friendly)
         if path.is_dir() and (path / "model.xgb").exists() and xgb is not None:
+            model_file = path / "model.xgb"
             try:
                 model = xgb.XGBRegressor()
-                model.load_model((path / "model.xgb").as_posix())
-                return model, path / "model.xgb"
-            except Exception:
-                pass
+                model.load_model(model_file.as_posix())
+                report.append(f"loaded: xgb.XGBRegressor.load_model ({model_file})")
+                return model, model_file, report
+            except Exception as exc:  # noqa: BLE001
+                report.append(f"load_failed: xgb.XGBRegressor.load_model ({model_file}) -> {exc}")
+                try:
+                    booster = xgb.Booster()
+                    booster.load_model(model_file.as_posix())
+                    report.append(f"loaded: xgb.Booster.load_model ({model_file})")
+                    return _BoosterPredictor(booster), model_file, report
+                except Exception as exc2:  # noqa: BLE001
+                    report.append(f"load_failed: xgb.Booster.load_model ({model_file}) -> {exc2}")
         # Pickle / joblib
         if path.is_file():
             if path.suffix.lower() == ".joblib" and joblib is not None:
                 try:
-                    return joblib.load(path), path
-                except Exception:
-                    pass
+                    report.append(f"loaded: joblib ({path})")
+                    return joblib.load(path), path, report
+                except Exception as exc:  # noqa: BLE001
+                    report.append(f"load_failed: joblib ({path}) -> {exc}")
             try:
                 with open(path, "rb") as f:
-                    return pickle.load(f), path
-            except Exception:
-                pass
-    return None, None
+                    report.append(f"loaded: pickle ({path})")
+                    return pickle.load(f), path, report
+            except Exception as exc:  # noqa: BLE001
+                report.append(f"load_failed: pickle ({path}) -> {exc}")
+    return None, None, report
 
 
 def build_feature_row(date: datetime, hour: int) -> dict:
@@ -114,7 +147,7 @@ def build_feature_row(date: datetime, hour: int) -> dict:
     return features
 
 
-model, model_path = load_model()
+model, model_path, load_report = load_model()
 expected_features = None
 # Try to infer expected feature order from the loaded model
 if model is not None:
@@ -146,16 +179,7 @@ if model is None:
         "or place a trained artifact under `models/` (e.g. `models/stacked_ensemble.joblib`)."
     )
     st.caption("Debug info (what the app tried to load):")
-    st.code(
-        "\n".join(
-            [
-                f"cwd: {os.getcwd()}",
-                f"app_dir: {APP_DIR}",
-                "candidates:",
-                *[f"- {p} (exists={p.exists()})" for p in MODEL_CANDIDATES],
-            ]
-        )
-    )
+    st.code("\n".join(load_report))
     st.stop()
 
 st.sidebar.header("Input Parameters")
