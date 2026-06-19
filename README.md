@@ -4,17 +4,17 @@
 
 ## 🚀 Executive Summary
 
-**Production-ready ML system for predicting hourly German electricity demand 24-48 hours ahead, achieving 2.50% MAPE—a 22% improvement over industry-standard persistence forecasts.**
+**Production-oriented portfolio prototype for hourly German electricity-demand forecasting. The repository reports 2.50% MAPE, a 22% relative improvement over its persistence baseline.**
 
 **The Challenge:** German transmission system operators need accurate load forecasts to balance intermittent renewable energy and manage grid stability. Forecast errors >2% cost ~€50M annually in emergency balancing actions.
 
 **The Solution:** XGBoost-based model leveraging 24 engineered features (cyclical time encodings, lag patterns, weather interactions) optimized via 50 Optuna trials. Deployed on Streamlit Cloud with Docker support, 3-tier model loading fallback, and comprehensive production monitoring plan.
 
-**The Impact:**
+**Measured model result:**
 - **22% error reduction** vs. persistence baseline (3.2% MAPE → 2.50% MAPE)
-- **~€15M annual value** in reduced balancing costs for German TSOs
-- **~200 GWh/year** renewable curtailment reduction
-- **Production-ready** with monitoring, drift detection, and retraining strategy
+- Docker and Streamlit packaging with a documented production-readiness plan
+
+**Scenario estimates, not realized impact:** The earlier EUR15M annual-value, 200 GWh curtailment and ROI figures are planning scenarios derived from stated assumptions. The model has not been deployed by a transmission system operator, so those figures must not be presented as customer outcomes.
 
 **Why XGBoost over alternatives?** Balances accuracy with interpretability (feature importance for TSO operational insights), <10ms inference latency, and proven energy forecasting track record. LSTM/Transformers would require 10x compute for marginal gains; ARIMA can't leverage weather/renewables features effectively.
 
@@ -40,12 +40,14 @@ Germany's Energiewende (energy transition) toward 80% renewable electricity by 2
 - Improved grid stability as renewables scale
 - Lower electricity costs for consumers
 
-**Value Proposition:**
-This project achieves **2.50% MAPE** (vs. ~3.2% baseline) — a **22% error reduction** — translating to:
+**Scenario analysis:**
+This project reports **2.50% MAPE** (vs. ~3.2% baseline), a **22% relative error reduction**. Under the assumptions documented in the notebook, that difference was modeled as:
 - ~€15M annual savings in balancing costs (at €100/MWh balancing premium)
 - ~315 MW average error reduction on 45 GW base load
 - ~200 GWh/year reduction in renewable curtailment
 - **ROI:** <2 weeks payback on 3-month development investment
+
+These are hypothetical translations, not independently validated savings or operational results.
 
 ## 📊 Data
 - Source: Prepared CSV (`german_energy_load_2022_2024.csv`) derived from ENTSO-E-style transparency data.
@@ -165,7 +167,10 @@ mlflow ui --backend-store-uri mlruns
 Open http://localhost:5000 to browse runs and artifacts.
 
 ## App Inputs / Model Expectations
-- Minimal inputs: date and hour; app builds calendar/cyclical features and uses default zeros for weather/renewables. For best results, deploy a model trained with matching feature schema (e.g., `energy_forecast_model.pkl` or `models/stacked_ensemble.joblib`).
+- Minimal inputs: date and hour; app builds calendar/cyclical features and accepts weather/renewables inputs.
+- The public demo currently uses zero placeholders for lag and rolling-load features because it is not connected to a live load-history feed. Predictions are illustrative until those features are populated from recent observations.
+- No calibrated prediction interval is currently shipped. Do not interpret a fixed percentage band as statistical uncertainty.
+- For operational use, connect authoritative recent-load data, validate the complete feature schema, run rolling-origin backtests, and calibrate prediction intervals before release.
 
 ## 🏭 Production Operations
 See [PRODUCTION.md](PRODUCTION.md) for comprehensive production operations guide including:

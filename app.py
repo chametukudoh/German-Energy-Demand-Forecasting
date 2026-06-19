@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from feature_engineering import build_feature_row
+
 try:
     import joblib  # type: ignore
 except Exception:  # noqa: BLE001
@@ -127,47 +129,6 @@ def load_model():
     return None, None, report
 
 
-def build_feature_row(date: datetime, hour: int) -> dict:
-    """Construct a single feature row mirroring the tuned XGB feature schema."""
-    dow = date.weekday()
-    month = date.month
-    year = date.year
-    is_weekend = 1 if dow >= 5 else 0
-    quarter = ((month - 1) // 3) + 1
-    day_of_year = date.timetuple().tm_yday
-    week_of_year = date.isocalendar().week
-
-    is_working_hours = 1 if 8 <= hour <= 18 else 0
-    is_night = 1 if hour <= 5 or hour >= 22 else 0
-    is_peak_morning = 1 if 7 <= hour <= 10 else 0
-    is_peak_evening = 1 if 17 <= hour <= 20 else 0
-
-    features = {
-        "temperature_C": 0.0,
-        "wind_generation_MW": 0.0,
-        "solar_generation_MW": 0.0,
-        "hour": hour,
-        "day_of_week": dow,
-        "month": month,
-        "is_weekend": is_weekend,
-        "year": year,
-        "hour_sin": np.sin(2 * np.pi * hour / 24),
-        "hour_cos": np.cos(2 * np.pi * hour / 24),
-        "day_sin": np.sin(2 * np.pi * dow / 7),
-        "day_cos": np.cos(2 * np.pi * dow / 7),
-        "month_sin": np.sin(2 * np.pi * month / 12),
-        "month_cos": np.cos(2 * np.pi * month / 12),
-        "quarter": quarter,
-        "day_of_year": day_of_year,
-        "week_of_year": week_of_year,
-        "is_working_hours": is_working_hours,
-        "is_night": is_night,
-        "is_peak_morning": is_peak_morning,
-        "is_peak_evening": is_peak_evening,
-    }
-    return features
-
-
 model, model_path, load_report = load_model()
 expected_features = None
 # Try to infer expected feature order from the loaded model
@@ -211,6 +172,9 @@ wind_input = st.sidebar.number_input("Wind generation (MW)", value=0.0, min_valu
 solar_input = st.sidebar.number_input("Solar generation (MW)", value=0.0, min_value=0.0)
 
 st.sidebar.markdown(f"**Loaded model:** `{model_path}`")
+st.sidebar.warning(
+    "Demo limitation: lag and rolling-load features use zero placeholders until a recent-load feed is connected."
+)
 
 features = build_feature_row(date_input, hour_input)
 # enrich with weather/renewables inputs
@@ -248,7 +212,7 @@ if st.sidebar.button("Predict"):
     try:
         prediction = float(model.predict(X_input)[0])
         st.success(f"Predicted Load: {prediction:,.0f} MW")
-        st.info(f"Confidence Interval: {prediction * 0.95:,.0f} - {prediction * 1.05:,.0f} MW")
+        st.caption("A calibrated prediction interval is not available in this prototype.")
     except Exception as exc:  # noqa: BLE001
         st.error(f"Prediction failed. Ensure model features match input schema. Details: {exc}")
 
